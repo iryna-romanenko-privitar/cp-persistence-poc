@@ -1,5 +1,8 @@
 package com.privitar.janusgraph;
 
+import static org.janusgraph.core.attribute.Text.textContains;
+import static org.janusgraph.core.attribute.Text.textContainsFuzzy;
+
 import com.privitar.janusgraph.domain.Dataset;
 import java.util.Arrays;
 import java.util.List;
@@ -10,6 +13,7 @@ import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import org.apache.tinkerpop.gremlin.process.traversal.TextP;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversalSource;
+import org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.PartitionStrategy;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.janusgraph.core.JanusGraph;
 
@@ -26,7 +30,9 @@ public class PersistenceService {
     }
 
     public Optional<Dataset> getDatasetById(String tenant, String id) {
-        Optional<Vertex> datasetVertex = g.V(id).has("tenant", tenant).tryNext();
+        PartitionStrategy tenantStrategy = PartitionStrategy.build().partitionKey("tenant").readPartitions(tenant).create();
+        Optional<Vertex> datasetVertex = g.withStrategies(tenantStrategy).V(id).tryNext();
+//        Optional<Vertex> datasetVertex = g.V(id).tryNext();
         return datasetVertex.map(PersistenceService::toDataset);
     }
 
@@ -41,7 +47,7 @@ public class PersistenceService {
     }
 
     public Set<Dataset> findByTag(String tenant, String tag) {
-        List<Vertex> datasetVertices = g.V().hasLabel("Dataset").has("tenant", tenant).has("tags", TextP.containing(tag)).next(10);
+        List<Vertex> datasetVertices = g.V().hasLabel("Dataset").has("tenant", tenant).has("tags", textContainsFuzzy(tag)).next(10);
         return datasetVertices.stream().map(PersistenceService::toDataset).collect(Collectors.toSet());
     }
 

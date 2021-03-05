@@ -29,6 +29,7 @@ import org.janusgraph.core.Multiplicity;
 import org.janusgraph.core.PropertyKey;
 import org.janusgraph.core.VertexLabel;
 import org.janusgraph.core.schema.JanusGraphManagement;
+import org.janusgraph.core.schema.Mapping;
 
 public class GraphGenerator {
 
@@ -62,22 +63,24 @@ public class GraphGenerator {
 
         gg.generateGraph();
 
+        gg.generateInvalidObjects();
+
         System.exit(0);
     }
 
     public GraphStats generateGraph() {
-        Map<String, List<Object>> owners = generateVertices(100, this::generateUser);
-        Map<String, List<Object>> requesters = generateVertices(20, this::generateUser);
-        Map<String, List<Object>> datasets = generateVertices(1000, this::generateDataset);
-        Map<String, List<Object>> assets = generateVertices(3000, this::generateAsset);
-        Map<String, List<Object>> connections = generateVertices(30, this::generateConnection);
+        Map<String, List<Object>> owners = generateVertices(1000, this::generateUser);
+        Map<String, List<Object>> requesters = generateVertices(200, this::generateUser);
+        Map<String, List<Object>> datasets = generateVertices(10000, this::generateDataset);
+        Map<String, List<Object>> assets = generateVertices(30000, this::generateAsset);
+        Map<String, List<Object>> connections = generateVertices(300, this::generateConnection);
 
         for (String tenant : tenants) {
             generateOwnsEdges(datasets.getOrDefault(tenant, new ArrayList<>()), owners.getOrDefault(tenant, new ArrayList<>()));
 
-            generateEdges(400, "hasAsset", datasets.getOrDefault(tenant, new ArrayList<>()), assets.getOrDefault(tenant, new ArrayList<>()));
+            generateEdges(20000, "hasAsset", datasets.getOrDefault(tenant, new ArrayList<>()), assets.getOrDefault(tenant, new ArrayList<>()));
 
-            generateEdges(10, "requests", requesters.getOrDefault(tenant, new ArrayList<>()), datasets.getOrDefault(tenant, new ArrayList<>()));
+            generateEdges(100, "requests", requesters.getOrDefault(tenant, new ArrayList<>()), datasets.getOrDefault(tenant, new ArrayList<>()));
 
             generateResidesEdges(assets.getOrDefault(tenant, new ArrayList<>()), connections.getOrDefault(tenant, new ArrayList<>()));
         }
@@ -99,7 +102,7 @@ public class GraphGenerator {
         try (FileWriter writer = new FileWriter(fileName)) {
             writer.write(header);
             writer.write("\n");
-            for(String value: values) {
+            for (String value : values) {
                 writer.write(value + "\n");
             }
         } catch (IOException exception) {
@@ -213,6 +216,22 @@ public class GraphGenerator {
         return ids.get(random.nextInt(ids.size()));
     }
 
+    public void generateInvalidObjects() {
+        graph.tx().open();
+
+        Vertex dataset = graph.addVertex("Dataset");
+        dataset.property("name", "TestInvalidSchema");
+        dataset.property("description", "Object that does not satisfy schema");
+        dataset.property("tenant", "MP");
+        dataset.property("location", "some location");
+
+        Vertex asset = graph.addVertex("Asset");
+        asset.property("name", "AssetWithWrongRelation");
+        asset.addEdge("hasAsset", dataset);
+
+        graph.tx().commit();
+    }
+
     private void defineSchema() {
         JanusGraphManagement management = graph.openManagement();
 
@@ -252,7 +271,9 @@ public class GraphGenerator {
 
         management.buildIndex("byTenant", Vertex.class).addKey(tenant).buildCompositeIndex();
 
-        System.out.println(management.printIndexes());
+        management.buildIndex("searchByTag", Vertex.class).addKey(tagsProps, Mapping.TEXTSTRING.asParameter()).buildMixedIndex("search");
+
+        management.buildIndex("searchByDescription", Vertex.class).addKey(description, Mapping.TEXT.asParameter()).buildMixedIndex("search");
 
         management.commit();
     }

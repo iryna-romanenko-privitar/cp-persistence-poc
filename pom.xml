@@ -87,6 +87,11 @@
             <version>0.3.1</version>
         </dependency>
         <dependency>
+            <groupId>org.janusgraph</groupId>
+            <artifactId>janusgraph-es</artifactId>
+            <version>0.5.3</version>
+        </dependency>
+        <dependency>
             <groupId>org.apache.tinkerpop</groupId>
             <artifactId>gremlin-driver</artifactId>
             <version>3.4.6</version>
